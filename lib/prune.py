@@ -244,10 +244,10 @@ def prune_mask(args, model, tokenizer, device, make_collector, prune_n=0, prune_
 
 
 @torch.no_grad()
-def prune_gpt(args, model, tokenizer, device, make_collector, prune_n=0, prune_m=0,
-              starts_with=None, true_sequential=False, offload_to_cpu=False):
+def prune_reconstruct(args, model, tokenizer, device, make_collector, prune_n=0, prune_m=0,
+                      starts_with=None, true_sequential=False, offload_to_cpu=False):
     """
-    Driver for the Hessian methods: SparseGPT, Whisper, ALPS, ALPS-Whisper.
+    Driver for the weight reconstruction methods: SparseGPT, Whisper, ALPS, ALPS-Whisper.
 
     Each collector accumulates a Hessian during calibration, then prunes and
     compensates the surviving weights itself inside fasterprune. ALPS solves by
@@ -416,10 +416,10 @@ def prune_sparsegpt(args, model, tokenizer, device=torch.device("cuda:0"), prune
                     starts_with=None, true_sequential=False, offload_to_cpu=False):
     ## SparseGPT code available at: https://github.com/IST-DASLab/sparsegpt
     print('Starting SparseGPT ...')
-    prune_gpt(args, model, tokenizer, device,
-              lambda name, module: SparseGPT(module),
-              prune_n=prune_n, prune_m=prune_m, starts_with=starts_with,
-              true_sequential=true_sequential, offload_to_cpu=offload_to_cpu)
+    prune_reconstruct(args, model, tokenizer, device,
+                      lambda name, module: SparseGPT(module),
+                      prune_n=prune_n, prune_m=prune_m, starts_with=starts_with,
+                      true_sequential=true_sequential, offload_to_cpu=offload_to_cpu)
 
 
 def prune_whisper(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0, prune_m=0,
@@ -433,9 +433,9 @@ def prune_whisper(args, model, tokenizer, device=torch.device("cuda:0"), prune_n
             return SparseGPT(module)
         return Whisper(module, gamma=gamma, pairing=pairing, n_pairs=n_pairs)
 
-    prune_gpt(args, model, tokenizer, device, make_collector,
-              prune_n=prune_n, prune_m=prune_m, starts_with=starts_with,
-              true_sequential=true_sequential, offload_to_cpu=offload_to_cpu)
+    prune_reconstruct(args, model, tokenizer, device, make_collector,
+                      prune_n=prune_n, prune_m=prune_m, starts_with=starts_with,
+                      true_sequential=true_sequential, offload_to_cpu=offload_to_cpu)
 
 
 def prune_ria(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0, prune_m=0,
@@ -491,10 +491,10 @@ def prune_alps(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0,
                offload_to_cpu=False):
     ## ALPS code available at: https://github.com/mazumder-lab/ALPS
     print('Starting ALPS ...')
-    prune_gpt(args, model, tokenizer, device,
-              lambda name, module: ALPS(module, rho=rho, max_iter=max_iter),
-              prune_n=prune_n, prune_m=prune_m, starts_with=starts_with,
-              true_sequential=true_sequential, offload_to_cpu=offload_to_cpu)
+    prune_reconstruct(args, model, tokenizer, device,
+                      lambda name, module: ALPS(module, rho=rho, max_iter=max_iter),
+                      prune_n=prune_n, prune_m=prune_m, starts_with=starts_with,
+                      true_sequential=true_sequential, offload_to_cpu=offload_to_cpu)
 
 
 def prune_alps_whisper(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0, prune_m=0,
@@ -510,6 +510,6 @@ def prune_alps_whisper(args, model, tokenizer, device=torch.device("cuda:0"), pr
         return ALPSWhisper(module, gamma=gamma, pairing=pairing, n_pairs=n_pairs,
                            rho=rho, max_iter=max_iter)
 
-    prune_gpt(args, model, tokenizer, device, make_collector,
-              prune_n=prune_n, prune_m=prune_m, starts_with=starts_with,
-              true_sequential=true_sequential, offload_to_cpu=offload_to_cpu)
+    prune_reconstruct(args, model, tokenizer, device, make_collector,
+                      prune_n=prune_n, prune_m=prune_m, starts_with=starts_with,
+                      true_sequential=true_sequential, offload_to_cpu=offload_to_cpu)

@@ -64,7 +64,7 @@ class ALPS:
 
     def fasterprune(self, sparsity, prune_n=0, prune_m=0, percdamp=.01, blocksize=128):
         """
-        Adapter to the prune_gpt collector contract. The solver is ALPS_admm.
+        Adapter to the prune_reconstruct collector contract. The solver is ALPS_admm.
 
         ALPS counts survivors per group where prune_n counts casualties: 2:4
         arrives here as prune_n=2 (two of every four zeroed) but ALPS wants
