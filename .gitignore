@@ -2,3 +2,4 @@ __pycache__/
 *log_*_seed_*.txt
 lm-evaluation-harness.zip
 lm-evaluation-harness/
+results/
