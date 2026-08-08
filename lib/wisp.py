@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from .metrics import knn_index
+from .metrics import check_pairing, knn_index
 from .wanda import Wanda
 
 
@@ -16,13 +16,9 @@ class Wisp(Wanda):
     "knn" (stochastic implementation with differences between similar inputs)
     """
 
-    PAIRINGS = ("centered", "random", "knn")
-
     def __init__(self, layer, layer_id=0, layer_name="none", pairing="centered", n_pairs=1):
         super().__init__(layer, layer_id=layer_id, layer_name=layer_name)
-        if pairing not in self.PAIRINGS:
-            raise ValueError(f"pairing must be one of {self.PAIRINGS}, got {pairing!r}")
-        self.pairing = pairing
+        self.pairing = check_pairing(pairing)
         self.n_pairs = n_pairs
 
     def add_batch(self, inp, out):

@@ -7,9 +7,9 @@ import torch
 from importlib.metadata import version
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
-from lib.prune import (check_sparsity, prune_magnitude, prune_ria, prune_ria_wisp,
-                       prune_ria_wispplus, prune_sparsegpt, prune_wanda, prune_whisper,
-                       prune_wisp, prune_wispplus)
+from lib.prune import (check_sparsity, prune_alps, prune_alps_whisper, prune_magnitude,
+                       prune_ria, prune_ria_wisp, prune_ria_wispplus, prune_sparsegpt,
+                       prune_wanda, prune_whisper, prune_wisp, prune_wispplus)
 from lib.eval import eval_ppl, run_evals
 
 # Layers pruned with general activation baselines by default.
@@ -20,12 +20,10 @@ DEFAULT_FALLBACK = ["self_attn.k_proj", "self_attn.v_proj", "self_attn.q_proj",
 
 # Ablation knobs. Passing any of them requires --testing.
 TESTING_ONLY_ARGS = ["n_pairs", "gamma", "top_frac", "ria_a", "starts_with",
-                     "wanda_fallback", "sparsegpt_fallback", "true_sequential"]
+                     "baseline_fallback", "alps_rho", "alps_max_iter", "true_sequential"]
 
 IMPLEMENTED_METHODS = ["magnitude", "wanda", "ria", "wisp", "wispplus", "ria-wisp",
-                       "ria-wispplus", "sparsegpt", "whisper"]
-# Selectable so the interface is stable, but not wired up yet.
-UNIMPLEMENTED_METHODS = ["alps", "alps-whisper"]
+                       "ria-wispplus", "sparsegpt", "whisper", "alps", "alps-whisper"]
 
 print('torch', version('torch'))
 print('transformers', version('transformers'))
@@ -62,7 +60,7 @@ def explicitly_passed(parser, argv=None):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, required=True, help='Path to the model')
-    parser.add_argument('--prune_method', type=str, required=True, choices=IMPLEMENTED_METHODS + UNIMPLEMENTED_METHODS, help='Pruning method to use.')
+    parser.add_argument('--prune_method', type=str, required=True, choices=IMPLEMENTED_METHODS, help='Pruning method to use.')
     parser.add_argument('--seed', type=int, default=0, help='Seed for sampling the calibration data.')
     parser.add_argument('--nsamples', type=int, default=128, help='Number of calibration samples.')
     parser.add_argument('--sparsity_ratio', type=float, default=0, help='Sparsity level. 0 leaves the model dense and only evaluates it.')
@@ -82,8 +80,9 @@ def main():
     parser.add_argument('--top_frac', type=float, default=0.005, help="Proportion of top pairs to consider for WispPlus saliency (K).")
     parser.add_argument('--ria_a', type=float, default=0.5, help="Exponent on the activation term of the RIA metric.")
     parser.add_argument("--starts_with", type=str, nargs='+', help="Prune only layers that start with any of the given strings.")
-    parser.add_argument("--wanda_fallback", type=str, nargs='*', default=DEFAULT_FALLBACK, help=f"Layer names to prune with the baseline saliency instead of difference-informed saliency: Wanda for wisp/wispplus, RIA for the ria- variants (default: {' '.join(DEFAULT_FALLBACK)}; pass the flag with no values to disable)")
-    parser.add_argument("--sparsegpt_fallback", type=str, nargs='*', default=DEFAULT_FALLBACK, help=f"Layer names to prune with SparseGPT geometry instead of difference-informed saliency (default: {' '.join(DEFAULT_FALLBACK)}; pass the flag with no values to disable)")
+    parser.add_argument("--baseline_fallback", type=str, nargs='*', default=DEFAULT_FALLBACK, help=f"Layer names to prune with the base method instead of its difference-informed counterpart: Wanda for wisp/wispplus, RIA for the ria- variants, SparseGPT for whisper, ALPS for alps-whisper (default: {' '.join(DEFAULT_FALLBACK)}; pass the flag with no values to disable)")
+    parser.add_argument('--alps_rho', type=float, default=0.1, help="Initial ADMM penalty parameter for ALPS and ALPS-Whisper. Adapted during the solve.")
+    parser.add_argument('--alps_max_iter', type=int, default=300, help="Maximum ADMM iterations for ALPS and ALPS-Whisper.")
     parser.add_argument("--true_sequential", action="store_true", help="Prune the model in a true sequential manner")
 
     args = parser.parse_args()
@@ -94,9 +93,6 @@ def main():
         if offenders:
             verb = "requires" if len(offenders) == 1 else "require"
             parser.error(f"{', '.join('--' + dest for dest in offenders)} {verb} --testing")
-
-    if args.prune_method in UNIMPLEMENTED_METHODS:
-        parser.error(f"--prune_method {args.prune_method} is not implemented yet")
 
     np.random.seed(args.seed)
     torch.random.manual_seed(args.seed)
@@ -139,23 +135,23 @@ def main():
         elif args.prune_method == "wisp":
             prune_wisp(args, model, tokenizer, device, prune_n=prune_n, prune_m=prune_m,
                        pairing=args.pairing, n_pairs=args.n_pairs, starts_with=args.starts_with,
-                       true_sequential=args.true_sequential, wanda_fallback=args.wanda_fallback,
+                       true_sequential=args.true_sequential, baseline_fallback=args.baseline_fallback,
                        offload_to_cpu=args.offload_to_cpu)
         elif args.prune_method == "wispplus":
             prune_wispplus(args, model, tokenizer, device, prune_n=prune_n, prune_m=prune_m,
                            top_frac=args.top_frac, n_pairs=args.n_pairs, starts_with=args.starts_with,
-                           true_sequential=args.true_sequential, wanda_fallback=args.wanda_fallback,
+                           true_sequential=args.true_sequential, baseline_fallback=args.baseline_fallback,
                            offload_to_cpu=args.offload_to_cpu)
         elif args.prune_method == "ria-wisp":
             prune_ria_wisp(args, model, tokenizer, device, prune_n=prune_n, prune_m=prune_m,
                            a=args.ria_a, pairing=args.pairing, n_pairs=args.n_pairs,
                            starts_with=args.starts_with, true_sequential=args.true_sequential,
-                           ria_fallback=args.wanda_fallback, offload_to_cpu=args.offload_to_cpu)
+                           baseline_fallback=args.baseline_fallback, offload_to_cpu=args.offload_to_cpu)
         elif args.prune_method == "ria-wispplus":
             prune_ria_wispplus(args, model, tokenizer, device, prune_n=prune_n, prune_m=prune_m,
                                a=args.ria_a, top_frac=args.top_frac, n_pairs=args.n_pairs,
                                starts_with=args.starts_with, true_sequential=args.true_sequential,
-                               ria_fallback=args.wanda_fallback, offload_to_cpu=args.offload_to_cpu)
+                               baseline_fallback=args.baseline_fallback, offload_to_cpu=args.offload_to_cpu)
         elif args.prune_method == "sparsegpt":
             prune_sparsegpt(args, model, tokenizer, device, prune_n=prune_n, prune_m=prune_m,
                             starts_with=args.starts_with, true_sequential=args.true_sequential,
@@ -164,8 +160,20 @@ def main():
             prune_whisper(args, model, tokenizer, device, prune_n=prune_n, prune_m=prune_m,
                           gamma=args.gamma, pairing=args.pairing, n_pairs=args.n_pairs,
                           starts_with=args.starts_with, true_sequential=args.true_sequential,
-                          sparsegpt_fallback=args.sparsegpt_fallback,
+                          baseline_fallback=args.baseline_fallback,
                           offload_to_cpu=args.offload_to_cpu)
+        elif args.prune_method == "alps":
+            prune_alps(args, model, tokenizer, device, prune_n=prune_n, prune_m=prune_m,
+                       rho=args.alps_rho, max_iter=args.alps_max_iter,
+                       starts_with=args.starts_with, true_sequential=args.true_sequential,
+                       offload_to_cpu=args.offload_to_cpu)
+        elif args.prune_method == "alps-whisper":
+            prune_alps_whisper(args, model, tokenizer, device, prune_n=prune_n, prune_m=prune_m,
+                               gamma=args.gamma, pairing=args.pairing, n_pairs=args.n_pairs,
+                               rho=args.alps_rho, max_iter=args.alps_max_iter,
+                               starts_with=args.starts_with, true_sequential=args.true_sequential,
+                               baseline_fallback=args.baseline_fallback,
+                               offload_to_cpu=args.offload_to_cpu)
     else:
         print("sparsity_ratio is 0, skipping pruning and evaluating the dense model")
 

@@ -1,0 +1,28 @@
+# Minimal environment for reproducing the paper's pruning + evaluation runs.
+#
+#   conda env create -f environment.yml
+#   conda activate whisper
+#
+# The CUDA 12.4 PyTorch wheels below match the reference environment. For a
+# different CUDA version, edit the --extra-index-url (see https://pytorch.org)
+# or drop it for the CPU/default build.
+name: whisper
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+      - --extra-index-url https://download.pytorch.org/whl/cu124
+      - torch==2.6.0
+      - transformers==4.51.3
+      - tokenizers==0.21.0
+      - accelerate==1.13.0
+      - datasets==3.2.0
+      - safetensors==0.5.2
+      - huggingface_hub==0.36.2
+      - numpy==2.2.2
+      - tqdm==4.67.1
+      # Needed by the Llama/Mistral SentencePiece tokenizers.
+      - sentencepiece==0.2.1
+      - protobuf==7.34.0

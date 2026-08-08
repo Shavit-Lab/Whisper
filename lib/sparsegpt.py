@@ -8,7 +8,7 @@ import transformers
 torch.backends.cuda.matmul.allow_tf32 = False
 torch.backends.cudnn.allow_tf32 = False
 
-## SparseGPT: https://github.com/IST-DASLab/sparsegpt/tree/f5c25005a61f96a0933ca2f95705a963585aafaa
+## SparseGPT: https://github.com/IST-DASLab/sparsegpt
 class SparseGPT:
 
     def __init__(self, layer):

@@ -1,0 +1,21 @@
+# Core dependencies for pruning + perplexity evaluation.
+# Install PyTorch first, matching your CUDA version (see https://pytorch.org).
+# Reference environment: torch 2.6.0+cu124, Python 3.12.
+#
+#   pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cu124
+#   pip install -r requirements.txt
+#
+# Zero-shot evals additionally require lm-evaluation-harness; see README.
+
+transformers==4.51.3
+tokenizers==0.21.0
+accelerate==1.13.0
+datasets==3.2.0
+safetensors==0.5.2
+huggingface_hub==0.36.2
+numpy==2.2.2
+tqdm==4.67.1
+
+# Needed by the Llama/Mistral SentencePiece tokenizers.
+sentencepiece==0.2.1
+protobuf==7.34.0

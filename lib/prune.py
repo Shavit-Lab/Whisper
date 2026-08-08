@@ -3,11 +3,12 @@ import torch.nn as nn
 from tqdm import tqdm
 
 from .wanda import Wanda
-from .ria import RIA, RIAWisp, RIAWispPlus
 from .wisp import Wisp
 from .wispplus import WispPlus
 from .sparsegpt import SparseGPT
 from .whisper import Whisper
+from .ria import RIA, RIAWisp, RIAWispPlus
+from .alps import ALPS, ALPSWhisper
 from .data import get_loaders
 
 SEQUENTIAL_GROUPS = [
@@ -167,7 +168,7 @@ def prune_mask(args, model, tokenizer, device, make_collector, prune_n=0, prune_
     scoring weights are then zeroed. Weights are never otherwise modified.
 
     make_collector(name, module) picks the collector class for one layer, which
-    is also where the wanda_fallback list is applied.
+    is also where the baseline_fallback list is applied.
     """
     use_cache = model.config.use_cache
     model.config.use_cache = False
@@ -246,13 +247,14 @@ def prune_mask(args, model, tokenizer, device, make_collector, prune_n=0, prune_
 def prune_gpt(args, model, tokenizer, device, make_collector, prune_n=0, prune_m=0,
               starts_with=None, true_sequential=False, offload_to_cpu=False):
     """
-    Driver for the Hessian methods: SparseGPT, Whisper.
+    Driver for the Hessian methods: SparseGPT, Whisper, ALPS, ALPS-Whisper.
 
     Each collector accumulates a Hessian during calibration, then prunes and
-    compensates the surviving weights itself inside fasterprune.
+    compensates the surviving weights itself inside fasterprune. ALPS solves by
+    ADMM and reaches its solver through a fasterprune adapter.
 
     make_collector(name, module) picks the collector class for one layer, which
-    is also where the sparsegpt_fallback list is applied.
+    is also where the baseline_fallback list is applied.
     """
     use_cache = model.config.use_cache
     model.config.use_cache = False
@@ -372,6 +374,7 @@ def prune_magnitude(args, model, tokenizer, device=torch.device("cuda:0"), prune
 
 def prune_wanda(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0, prune_m=0,
                 starts_with=None, true_sequential=False, offload_to_cpu=False):
+    ## Wanda code available at: https://github.com/locuslab/wanda
     print('Starting Wanda ...')
     prune_mask(args, model, tokenizer, device,
                lambda name, module: Wanda(module),
@@ -379,22 +382,13 @@ def prune_wanda(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0
                true_sequential=true_sequential, offload_to_cpu=offload_to_cpu)
 
 
-def prune_ria(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0, prune_m=0,
-              a=0.5, starts_with=None, true_sequential=False, offload_to_cpu=False):
-    print('Starting RIA ...')
-    prune_mask(args, model, tokenizer, device,
-               lambda name, module: RIA(module, a=a),
-               prune_n=prune_n, prune_m=prune_m, starts_with=starts_with,
-               true_sequential=true_sequential, offload_to_cpu=offload_to_cpu)
-
-
 def prune_wisp(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0, prune_m=0,
                pairing="centered", n_pairs=1, starts_with=None, true_sequential=False,
-               wanda_fallback=None, offload_to_cpu=False):
+               baseline_fallback=None, offload_to_cpu=False):
     print('Starting WISP ...')
 
     def make_collector(name, module):
-        if wanda_fallback is not None and name in wanda_fallback:
+        if baseline_fallback is not None and name in baseline_fallback:
             return Wanda(module)
         return Wisp(module, pairing=pairing, n_pairs=n_pairs)
 
@@ -405,11 +399,11 @@ def prune_wisp(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0,
 
 def prune_wispplus(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0, prune_m=0,
                    top_frac=0.005, n_pairs=1, starts_with=None, true_sequential=False,
-                   wanda_fallback=None, offload_to_cpu=False):
+                   baseline_fallback=None, offload_to_cpu=False):
     print('Starting WISP+ ...')
 
     def make_collector(name, module):
-        if wanda_fallback is not None and name in wanda_fallback:
+        if baseline_fallback is not None and name in baseline_fallback:
             return Wanda(module)
         return WispPlus(module, top_frac=top_frac, n_pairs=n_pairs)
 
@@ -418,9 +412,45 @@ def prune_wispplus(args, model, tokenizer, device=torch.device("cuda:0"), prune_
                true_sequential=true_sequential, offload_to_cpu=offload_to_cpu)
 
 
+def prune_sparsegpt(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0, prune_m=0,
+                    starts_with=None, true_sequential=False, offload_to_cpu=False):
+    ## SparseGPT code available at: https://github.com/IST-DASLab/sparsegpt
+    print('Starting SparseGPT ...')
+    prune_gpt(args, model, tokenizer, device,
+              lambda name, module: SparseGPT(module),
+              prune_n=prune_n, prune_m=prune_m, starts_with=starts_with,
+              true_sequential=true_sequential, offload_to_cpu=offload_to_cpu)
+
+
+def prune_whisper(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0, prune_m=0,
+                  gamma=0.01, pairing="centered", n_pairs=1, starts_with=None,
+                  true_sequential=False, baseline_fallback=None, offload_to_cpu=False):
+    print('Starting WHISPER ...')
+    print(f"Regularization factor: {gamma}")
+
+    def make_collector(name, module):
+        if baseline_fallback is not None and name in baseline_fallback:
+            return SparseGPT(module)
+        return Whisper(module, gamma=gamma, pairing=pairing, n_pairs=n_pairs)
+
+    prune_gpt(args, model, tokenizer, device, make_collector,
+              prune_n=prune_n, prune_m=prune_m, starts_with=starts_with,
+              true_sequential=true_sequential, offload_to_cpu=offload_to_cpu)
+
+
+def prune_ria(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0, prune_m=0,
+              a=0.5, starts_with=None, true_sequential=False, offload_to_cpu=False):
+    ## RIA code available at: https://github.com/biomedical-cybernetics/Relative-importance-and-activation-pruning
+    print('Starting RIA ...')
+    prune_mask(args, model, tokenizer, device,
+               lambda name, module: RIA(module, a=a),
+               prune_n=prune_n, prune_m=prune_m, starts_with=starts_with,
+               true_sequential=true_sequential, offload_to_cpu=offload_to_cpu)
+
+
 def prune_ria_wisp(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0, prune_m=0,
                    a=0.5, pairing="centered", n_pairs=1, starts_with=None, true_sequential=False,
-                   ria_fallback=None, offload_to_cpu=False):
+                   baseline_fallback=None, offload_to_cpu=False):
     """
     Wisp's activation differences scored with the RIA weight term.
 
@@ -429,7 +459,7 @@ def prune_ria_wisp(args, model, tokenizer, device=torch.device("cuda:0"), prune_
     print('Starting RIA-WISP ...')
 
     def make_collector(name, module):
-        if ria_fallback is not None and name in ria_fallback:
+        if baseline_fallback is not None and name in baseline_fallback:
             return RIA(module, a=a)
         return RIAWisp(module, a=a, pairing=pairing, n_pairs=n_pairs)
 
@@ -440,14 +470,14 @@ def prune_ria_wisp(args, model, tokenizer, device=torch.device("cuda:0"), prune_
 
 def prune_ria_wispplus(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0, prune_m=0,
                        a=0.5, top_frac=0.005, n_pairs=1, starts_with=None, true_sequential=False,
-                       ria_fallback=None, offload_to_cpu=False):
+                       baseline_fallback=None, offload_to_cpu=False):
     """
     Wisp+'s per-neuron activation differences scored with the RIA weight term.
     """
     print('Starting RIA-WISP+ ...')
 
     def make_collector(name, module):
-        if ria_fallback is not None and name in ria_fallback:
+        if baseline_fallback is not None and name in baseline_fallback:
             return RIA(module, a=a)
         return RIAWispPlus(module, a=a, top_frac=top_frac, n_pairs=n_pairs)
 
@@ -456,26 +486,29 @@ def prune_ria_wispplus(args, model, tokenizer, device=torch.device("cuda:0"), pr
                true_sequential=true_sequential, offload_to_cpu=offload_to_cpu)
 
 
-def prune_sparsegpt(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0, prune_m=0,
-                    starts_with=None, true_sequential=False, offload_to_cpu=False):
-    ## SparseGPT code available at: https://github.com/IST-DASLab/sparsegpt/tree/f5c25005a61f96a0933ca2f95705a963585aafaa
-    print('Starting SparseGPT ...')
+def prune_alps(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0, prune_m=0,
+               rho=0.1, max_iter=300, starts_with=None, true_sequential=False,
+               offload_to_cpu=False):
+    ## ALPS code available at: https://github.com/mazumder-lab/ALPS
+    print('Starting ALPS ...')
     prune_gpt(args, model, tokenizer, device,
-              lambda name, module: SparseGPT(module),
+              lambda name, module: ALPS(module, rho=rho, max_iter=max_iter),
               prune_n=prune_n, prune_m=prune_m, starts_with=starts_with,
               true_sequential=true_sequential, offload_to_cpu=offload_to_cpu)
 
 
-def prune_whisper(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0, prune_m=0,
-                  gamma=0.01, pairing="centered", n_pairs=1, starts_with=None,
-                  true_sequential=False, sparsegpt_fallback=None, offload_to_cpu=False):
-    print('Starting WHISPER ...')
+def prune_alps_whisper(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0, prune_m=0,
+                       gamma=0.01, pairing="centered", n_pairs=1, rho=0.1, max_iter=300,
+                       starts_with=None, true_sequential=False, baseline_fallback=None,
+                       offload_to_cpu=False):
+    print('Starting ALPS-WHISPER ...')
     print(f"Regularization factor: {gamma}")
 
     def make_collector(name, module):
-        if sparsegpt_fallback is not None and name in sparsegpt_fallback:
-            return SparseGPT(module)
-        return Whisper(module, gamma=gamma, pairing=pairing, n_pairs=n_pairs)
+        if baseline_fallback is not None and name in baseline_fallback:
+            return ALPS(module, rho=rho, max_iter=max_iter)
+        return ALPSWhisper(module, gamma=gamma, pairing=pairing, n_pairs=n_pairs,
+                           rho=rho, max_iter=max_iter)
 
     prune_gpt(args, model, tokenizer, device, make_collector,
               prune_n=prune_n, prune_m=prune_m, starts_with=starts_with,

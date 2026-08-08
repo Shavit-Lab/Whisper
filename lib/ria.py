@@ -4,10 +4,10 @@ from .wanda import Wanda
 from .wisp import Wisp
 from .wispplus import WispPlus
 
-
+## RIA: https://github.com/biomedical-cybernetics/Relative-importance-and-activation-pruning
 class RelativeImportance:
     """
-    The RIA weight term: https://github.com/biomedical-cybernetics/Relative-importance-and-activation-pruning
+    The RIA weight term performs both row and column normalization.
     """
 
     def __init__(self, *args, a=0.5, **kwargs):
