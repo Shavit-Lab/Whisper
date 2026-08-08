@@ -37,7 +37,7 @@ python main.py \
     --model <hf-model-path> \
     --prune_method <method> \
     --sparsity_ratio <ratio> \
-    --sparsity_type <unstructured|n:m> \
+    --sparsity_type <unstructured|n:m>
 ```
 - `--model`: either a huggingface model path or a local path of a downloaded huggingface model.
 - `--prune_method`: one of `magnitude`, `wanda`, `ria`, `wisp`, `wispplus`, `ria-wisp`, `ria-wispplus`, `sparsegpt`, `whisper`, `alps`, `alps-whisper`.
