@@ -1,4 +1,4 @@
-# ['The Sparsity Whisperer']()
+# [The Sparsity Whisperer]()
 Here we include the code for the official implementations of Wisp, Wisp+, and Whisper for our paper [The Sparsity Whisperer]().
 
 ### Overview
