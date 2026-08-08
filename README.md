@@ -21,7 +21,7 @@ For a pip-only install, install PyTorch matching your CUDA version first, then:
 pip install -r requirements.txt
 ```
 
-This is enough to run every pruning method and the WikiText-2 perplexity evaluation. Zero-shot evaluation (`--eval_zero_shot`) additionally requires the `v0.3.0` fork of [lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness) that [Wanda](https://github.com/locuslab/wanda) distributes [here](https://drive.google.com/file/d/1zugbLyGZKsH1L19L9biHLfaGGFnEc7XL/view?usp=sharing). Unzip it into the repository root and install it in editable mode:
+This is enough to run every pruning method and the WikiText-2 perplexity evaluation. Harness-based evaluation (`--eval`, `--eval_llm_leaderboard_v1`) additionally requires the `v0.3.0` fork of [lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness) that [Wanda](https://github.com/locuslab/wanda) distributes [here](https://drive.google.com/file/d/1zugbLyGZKsH1L19L9biHLfaGGFnEc7XL/view?usp=sharing). Unzip it into the repository root and install it in editable mode:
 ```
 pip install -e lm-evaluation-harness
 ```
@@ -31,7 +31,41 @@ The bundled `v0.3.0` harness predates `datasets` removing `load_metric`, so `lm_
 
 ### Running the examples
 
+Every method is run through `main.py`. The basic form is:
+```
+python main.py \
+    --model <hf-model-path> \
+    --prune_method <method> \
+    --sparsity_ratio <ratio> \
+    --sparsity_type <unstructured|n:m> \
+```
+- `--model`: either a huggingface model path or a local path of a downloaded huggingface model.
+- `--prune_method`: one of `magnitude`, `wanda`, `ria`, `wisp`, `wispplus`, `ria-wisp`, `ria-wispplus`, `sparsegpt`, `whisper`, `alps`, `alps-whisper`.
+- `--sparsity_ratio`: fraction of weights removed, e.g. `0.5`. Leaving it at `0` skips pruning and just evaluates the dense model.
+- `--sparsity_type`: `unstructured` (default) or `n:m`, e.g. `2:4`.
+- `--pairing`: how Wisp/Whisper form activation differences — `centered` (default, deterministic) or `random` (stochastic).
+- `--save` / `--save_eval` / `--save_model`: directories for the perplexity log, the evaluation results, and the pruned checkpoint.
+- `--offload_to_cpu`: keeps the model on CPU and moves one layer at a time to the GPU. Use this for models that do not fit in GPU memory (e.g. Llama 2 70B).
+- `--seed`: seed for sampling the calibration data (default 0)
+- `--nsamples`: number of calibration samples (default 128)
 
+WikiText-2 test perplexity is always reported. To also run harness tasks, pass `--eval` with a matching `--num_fewshot`, or `--eval_llm_leaderboard_v1` for the full Open LLM Leaderboard v1 suite with `mathqa` instead of `gsm8k`.
+
+For example, pruning Llama 2 7B to 50% unstructured sparsity with Whisper and evaluating on WikiText-2 plus a few zero-shot tasks:
+```
+python main.py \
+    --model meta-llama/Llama-2-7b-hf \
+    --prune_method whisper \
+    --sparsity_ratio 0.5 \
+    --sparsity_type unstructured \
+    --save results/Llama-2-7B/whisper/sparsity_0.5 \
+    --save_eval results/Llama-2-7B/whisper/sparsity_0.5 \
+    --eval mathqa truthfulqa_mc \
+    --num_fewshot 0 0
+```
+The model can also be downloaded locally prior to running with `huggingface-cli download <hf-model-path> --local-dir <local-path>` and using the local path instead. Swapping `--prune_method whisper` for `sparsegpt` gives the baseline it is compared against, and `--sparsity_type 2:4` reproduces the structured setting.
+
+The remaining flags (`--n_pairs`, `--gamma`, `--top_frac`, `--ria_a`, `--starts_with`, `--baseline_fallback`, `--alps_rho`, `--alps_max_iter`, `--true_sequential`, and `--pairing knn`) are ablation knobs, using any of them requires passing `--testing` as well. Run `python main.py --help` for the full list.
 
 ### Results
 
