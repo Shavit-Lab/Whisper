@@ -65,7 +65,7 @@ def main():
     parser.add_argument('--nsamples', type=int, default=128, help='Number of calibration samples.')
     parser.add_argument('--sparsity_ratio', type=float, default=0, help='Sparsity level. 0 leaves the model dense and only evaluates it.')
     parser.add_argument("--sparsity_type", type=str, default="unstructured", help='"unstructured", or "n:m" for structured n:m sparsity (e.g. 2:4).')
-    parser.add_argument("--pairing", type=str, default="centered", choices=["centered", "random", "knn"], help="How Wisp/Whisper form activation differences: the exact centered form, random token pairings, or nearest-neighbour pairings.")
+    parser.add_argument("--pairing", type=str, default="centered", choices=["centered", "random", "knn"], help="How Wisp/Whisper form activation differences: the exact centered form, random token pairings, or nearest-neighbour pairings. KNN requires --testing.")
     parser.add_argument('--save', type=str, default=None, help='Path to save perplexity results.')
     parser.add_argument("--save_eval", type=str, default=None, help="Path to save evaluation results.")
     parser.add_argument('--save_model', type=str, default=None, help='Path to save the pruned model.')
@@ -93,6 +93,8 @@ def main():
         if offenders:
             verb = "requires" if len(offenders) == 1 else "require"
             parser.error(f"{', '.join('--' + dest for dest in offenders)} {verb} --testing")
+        if args.pairing == "knn":
+            parser.error("--pairing knn requires --testing")
 
     np.random.seed(args.seed)
     torch.random.manual_seed(args.seed)
