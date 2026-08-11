@@ -1,5 +1,5 @@
-# [The Sparsity Whisperer]()
-Here we include the code for the official implementations of Wisp, Wisp+, and Whisper for our paper [The Sparsity Whisperer]().
+# [The Sparsity Whisperer](https://arxiv.org/abs/2608.06630)
+Official implementation of **Wisp**, **Wisp+**, and **Whisper** from [The Sparsity Whisperer](https://arxiv.org/abs/2608.06630), a family of difference-informed one-shot LLM pruning methods that consistently improves Wanda, SparseGPT, RIA, and ALPS across model families, scales, and sparsity settings, shifting the accuracy–pruning-time frontier outward.
 
 ### Overview
 
@@ -79,3 +79,12 @@ This repository was built upon the [Wanda](https://github.com/locuslab/wanda), [
 
 ### Cite
 If you found our work useful, please cite our paper:
+```
+@article{kong2026sparsity,
+  title={The Sparsity Whisperer},
+  author={Kong, Linghao and Subramanian, Inimai and Adler, Micah and Alistarh, Dan and Gutfreund, Dan and Shavit, Nir},
+  journal={arXiv preprint arXiv:2608.06630},
+  year={2026}
+}
+
+```
