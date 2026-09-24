@@ -1,4 +1,4 @@
-# [The Sparsity Whisperer](https://arxiv.org/abs/2608.06630)
+# [The Sparsity Whisperer](https://arxiv.org/abs/2608.06630) - NeurIPS 2026
 Official implementation of **Wisp**, **Wisp+**, and **Whisper** from [The Sparsity Whisperer](https://arxiv.org/abs/2608.06630), a family of difference-informed one-shot LLM pruning methods that consistently improves Wanda, SparseGPT, RIA, and ALPS across model families, scales, and sparsity settings, shifting the accuracy–pruning-time frontier outward.
 
 ### Overview
