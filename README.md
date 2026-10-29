@@ -80,10 +80,10 @@ This repository was built upon the [Wanda](https://github.com/locuslab/wanda), [
 ### Cite
 If you found our work useful, please cite our paper:
 ```
-@article{kong2026sparsity,
+@inproceedings{kong2026sparsity,
   title={The Sparsity Whisperer},
   author={Kong, Linghao and Subramanian, Inimai and Adler, Micah and Alistarh, Dan and Gutfreund, Dan and Shavit, Nir},
-  journal={arXiv preprint arXiv:2608.06630},
+  booktitle={The Fortieth Annual Conference on Neural Information Processing Systems},
   year={2026}
 }
 
